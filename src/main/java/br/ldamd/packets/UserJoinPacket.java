@@ -2,6 +2,9 @@ package br.ldamd.packets;
 
 import br.ldamd.Packet;
 
+/**
+ * The UserJoinPacket class represents a packet that indicates a user has joined the chat room.
+ */
 public class UserJoinPacket extends Packet {
 
     public UserJoinPacket(String username) {

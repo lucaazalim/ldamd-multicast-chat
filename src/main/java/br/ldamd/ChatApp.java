@@ -1,5 +1,7 @@
 package br.ldamd;
 
+import br.ldamd.exceptions.AlreadyConnectedToARoomException;
+import br.ldamd.exceptions.NotConnectedToARoomException;
 import br.ldamd.packets.MessagePacket;
 import br.ldamd.packets.UserJoinPacket;
 import br.ldamd.packets.UserLeavePacket;
@@ -7,6 +9,9 @@ import br.ldamd.packets.UserLeavePacket;
 import java.io.IOException;
 import java.net.*;
 
+/**
+ * The ChatApp class provides functionality for a user to join a chat room, send messages, and receive messages asynchronously.
+ */
 public class ChatApp {
 
     private static final String ADDRESS_PREFIX = "230.0.0.";
@@ -19,31 +24,42 @@ public class ChatApp {
     private InetSocketAddress group;
     private MulticastSocket multicastSocket;
 
+    /**
+     * Constructs a ChatApp instance with the specified username.
+     *
+     * @param name the username of the user
+     */
     public ChatApp(String name) {
-        this.username = name;
+        username = name;
     }
 
+    /**
+     * Enters a chat room with the specified room number.
+     *
+     * @param roomNumber the room number to join
+     * @throws AlreadyConnectedToARoomException if the user is already connected to a room
+     */
     public void enterRoom(int roomNumber) {
 
-        if (this.isConnected()) {
-            throw new RuntimeException("You need to leave the room before joining another one.");
+        if (isConnected()) {
+            throw new AlreadyConnectedToARoomException();
         }
 
         try {
-            this.groupAddress = InetAddress.getByName(ADDRESS_PREFIX + roomNumber);
+            groupAddress = InetAddress.getByName(ADDRESS_PREFIX + roomNumber);
         } catch (UnknownHostException e) {
             throw new RuntimeException("Unknown host for the specified room number.", e);
         }
 
-        this.group = new InetSocketAddress(this.groupAddress, PORT);
+        group = new InetSocketAddress(groupAddress, PORT);
 
         try {
 
-            this.multicastSocket = new MulticastSocket(PORT);
-            this.multicastSocket.joinGroup(this.group, null);
+            multicastSocket = new MulticastSocket(PORT);
+            multicastSocket.joinGroup(group, null);
 
-            var handshakePacket = new UserJoinPacket(this.username);
-            this.sendPacket(handshakePacket);
+            var handshakePacket = new UserJoinPacket(username);
+            sendPacket(handshakePacket);
 
         } catch (IOException e) {
             throw new RuntimeException("Unable to join the specified room.", e);
@@ -51,31 +67,42 @@ public class ChatApp {
 
     }
 
+    /**
+     * Leaves the current chat room.
+     *
+     * @throws NotConnectedToARoomException if the user is not connected to any room
+     */
     public void leaveRoom() {
 
-        if (this.multicastSocket == null) {
-            throw new RuntimeException("Already not in a room.");
+        if (multicastSocket == null) {
+            throw new NotConnectedToARoomException();
         }
 
-        var handshakePacket = new UserLeavePacket(this.username);
-        this.sendPacket(handshakePacket);
+        var handshakePacket = new UserLeavePacket(username);
+        sendPacket(handshakePacket);
 
         try {
-            this.multicastSocket.leaveGroup(this.group, null);
+            multicastSocket.leaveGroup(group, null);
         } catch (IOException e) {
             throw new RuntimeException("Unable to leave room.", e);
         }
 
-        this.multicastSocket.close();
-        this.groupAddress = null;
-        this.group = null;
+        multicastSocket.close();
+        groupAddress = null;
+        group = null;
 
     }
 
+    /**
+     * Sends a packet to the current chat room.
+     *
+     * @param packet the packet to send
+     * @throws NotConnectedToARoomException if the user is not connected to any room
+     */
     private void sendPacket(Packet packet) {
 
-        if (!this.isConnected()) {
-            throw new RuntimeException("Can't send packet before joining a room.");
+        if (!isConnected()) {
+            throw new NotConnectedToARoomException();
         }
 
         byte[] serializedPacket;
@@ -89,30 +116,39 @@ public class ChatApp {
         var datagramPacketOut = new DatagramPacket(serializedPacket, serializedPacket.length, groupAddress, PORT);
 
         try {
-            this.multicastSocket.send(datagramPacketOut);
+            multicastSocket.send(datagramPacketOut);
         } catch (IOException e) {
             throw new RuntimeException("Unable to send packet.", e);
         }
 
     }
 
+    /**
+     * Sends a message to the current chat room.
+     *
+     * @param messageContent the content of the message to send
+     * @throws NotConnectedToARoomException if the user is not connected to any room
+     */
     public void sendMessage(String messageContent) {
 
-        var message = new MessagePacket(this.username, messageContent);
-        this.sendPacket(message);
+        var message = new MessagePacket(username, messageContent);
+        sendPacket(message);
 
     }
 
+    /**
+     * Receives packets from the current chat room.
+     */
     public void receivePackets() {
 
         byte[] buffer = new byte[BUFFER_SIZE];
 
-        while (this.isConnected()) {
+        while (isConnected()) {
 
             var datagramPacketIn = new DatagramPacket(buffer, BUFFER_SIZE);
 
             try {
-                this.multicastSocket.receive(datagramPacketIn);
+                multicastSocket.receive(datagramPacketIn);
             } catch (IOException e) {
                 throw new RuntimeException("Unable to receive message.", e);
             }
@@ -133,12 +169,21 @@ public class ChatApp {
 
     }
 
+    /**
+     * Starts receiving packets asynchronously from the current chat room.
+     * Call {@link ChatApp#leaveRoom()} to stop receiving packets.
+     */
     public void receivePacketsAsync() {
-        new Thread(this::receivePackets).start();
+        new Thread(this::receivePackets, "PacketReceiver").start();
     }
 
+    /**
+     * Checks if the user is connected to a chat room.
+     *
+     * @return true if the user is connected, false otherwise
+     */
     public boolean isConnected() {
-        return this.multicastSocket != null && !this.multicastSocket.isClosed();
+        return multicastSocket != null && !multicastSocket.isClosed();
     }
 
 }
