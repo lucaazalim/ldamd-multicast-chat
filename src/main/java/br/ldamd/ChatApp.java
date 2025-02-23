@@ -56,9 +56,9 @@ public class ChatApp {
         try {
 
             multicastSocket = new MulticastSocket(PORT);
-            multicastSocket.joinGroup(group, null);
+            multicastSocket.joinGroup(groupAddress);  // Alterado para usar groupAddress diretamente
 
-            var handshakePacket = new UserJoinPacket(username);
+            UserJoinPacket handshakePacket = new UserJoinPacket(username);  // Definido tipo explicitamente
             sendPacket(handshakePacket);
 
         } catch (IOException e) {
@@ -78,11 +78,11 @@ public class ChatApp {
             throw new NotConnectedToARoomException();
         }
 
-        var handshakePacket = new UserLeavePacket(username);
+        UserLeavePacket handshakePacket = new UserLeavePacket(username);  // Definido tipo explicitamente
         sendPacket(handshakePacket);
 
         try {
-            multicastSocket.leaveGroup(group, null);
+            multicastSocket.leaveGroup(groupAddress);  // Alterado para usar groupAddress diretamente
         } catch (IOException e) {
             throw new RuntimeException("Unable to leave room.", e);
         }
@@ -113,7 +113,7 @@ public class ChatApp {
             throw new RuntimeException("Unable to serialize the packet.", e);
         }
 
-        var datagramPacketOut = new DatagramPacket(serializedPacket, serializedPacket.length, groupAddress, PORT);
+        DatagramPacket datagramPacketOut = new DatagramPacket(serializedPacket, serializedPacket.length, groupAddress, PORT);
 
         try {
             multicastSocket.send(datagramPacketOut);
@@ -131,7 +131,7 @@ public class ChatApp {
      */
     public void sendMessage(String messageContent) {
 
-        var message = new MessagePacket(username, messageContent);
+        MessagePacket message = new MessagePacket(username, messageContent);  // Definido tipo explicitamente
         sendPacket(message);
 
     }
@@ -145,7 +145,7 @@ public class ChatApp {
 
         while (isConnected()) {
 
-            var datagramPacketIn = new DatagramPacket(buffer, BUFFER_SIZE);
+            DatagramPacket datagramPacketIn = new DatagramPacket(buffer, BUFFER_SIZE);
 
             try {
                 multicastSocket.receive(datagramPacketIn);
@@ -162,9 +162,6 @@ public class ChatApp {
             }
 
             receivedPacket.onReceive();
-
-            buffer = new byte[BUFFER_SIZE];
-
         }
 
     }
